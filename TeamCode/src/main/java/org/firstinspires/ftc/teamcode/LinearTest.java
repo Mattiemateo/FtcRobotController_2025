@@ -40,10 +40,10 @@ public class LinearTest extends LinearOpMode {
             telemetry.addData("lx", gamepad1.left_stick_x);
             telemetry.addData("ly", gamepad1.left_stick_y);
             telemetry.addData("rx", gamepad1.right_stick_x);
+            liftpos = lift.getCurrentPosition();
+            telemetry.addData("liftpos", liftpos);
 
             telemetry.update();
-
-            liftpos = lift.getCurrentPosition();
 
             if (gamepad1.left_trigger < 0.5) {
                 double x = gamepad1.left_stick_x;
@@ -102,27 +102,17 @@ public class LinearTest extends LinearOpMode {
                 rightBackDrive.setPower(rightBack * 0.25);
             }
 
+
             // Lift control
-            if (gamepad2.dpad_up) {
-                lift.setPower(0.6);
-                targetpos = 0;
-            } else if (gamepad2.dpad_down) {
-                lift.setPower(-0.6);
-                targetpos = 0;
+            if (gamepad2.dpad_up && liftpos < 50000) {
+                lift.setPower(0.6);  // Go up
+            } else if (gamepad2.dpad_down && liftpos > 0) {
+                lift.setPower(-0.6); // Go down
             } else {
-                if (targetpos == 0) {
-                    targetpos = liftpos;
-                }
-                if (targetpos + 15 < liftpos) {
-                    lift.setPower(-0.1);
-                } else if (targetpos - 15 > liftpos){
-                    lift.setPower(0.1);
-                } else {
-                    lift.setPower(0);
-                }
+                lift.setPower(0);    // Stop when no input or at limits
             }
 
-        }
 
+        }
     }
 }
