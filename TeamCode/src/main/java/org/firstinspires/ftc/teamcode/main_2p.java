@@ -13,7 +13,7 @@ public class main_2p extends LinearOpMode {
     private DcMotor liftR;
     private DcMotor liftL;
     private DcMotor arm_rot;
-    boolean is_open_claw = true;
+    private double claw_pos = 0;
     private DcMotor leftFrontDrive;
     private DcMotor rightFrontDrive;
     private DcMotor leftBackDrive;
@@ -67,22 +67,24 @@ public class main_2p extends LinearOpMode {
             int liftPosR = liftR.getCurrentPosition();
             int liftPosL = liftL.getCurrentPosition();
 
-            telemetry.addData("Target Pos", targetLiftPos);
-            telemetry.addData("Lift Position R", liftPosR);
-            telemetry.addData("Lift Position L", liftPosL);
-
             telemetry.addData("Status", "Waiting for input");
             telemetry.addData("lx1", gamepad1.left_stick_x);
             telemetry.addData("ly1", gamepad1.left_stick_y);
             telemetry.addData("rx1", gamepad1.right_stick_x);
+            telemetry.addLine();
 
             telemetry.addData("lx2", gamepad2.left_stick_x);
             telemetry.addData("ry2", gamepad2.right_stick_y);
             telemetry.addData("rx2", gamepad2.right_stick_x);
+            telemetry.addLine();
 
-            telemetry.addData("is_open_claw", is_open_claw);
-            telemetry.addData("Lift_pos_r", liftPosR);
-            telemetry.addData("Lift_pos_l", liftPosL);
+            telemetry.addData("Target Pos", targetLiftPos);
+            telemetry.addData("Lift Position R", liftPosR);
+            telemetry.addData("Lift Position L", liftPosL);
+            telemetry.addLine();
+
+            telemetry.addData("claw_pos", claw_pos);
+            telemetry.addLine();
 
 
             telemetry.update();
@@ -123,17 +125,16 @@ public class main_2p extends LinearOpMode {
                 claw.setPosition(0.6);
             }
 
-            //claw
-            if (gamepad2.square) {
-                if (is_open_claw){
-                    claw.setPosition(0.6);
-                    is_open_claw = false;
-                }
+            //claw TWEAK HERE
+            if (gamepad2.triangle) {
+                claw.setPosition(0.8);
+                claw_pos = 0.8;
+            }else if(gamepad2.circle) {
+                claw.setPosition(0.6);
+                claw_pos = 0.6;
             }else if(gamepad2.cross) {
-                if (!is_open_claw){
-                    claw.setPosition(0.4);
-                    is_open_claw = true;
-                }
+                claw.setPosition(0.45);
+                claw_pos = 0.45;
             }
 
             //extention arm
@@ -146,9 +147,9 @@ public class main_2p extends LinearOpMode {
             }
 
             //rotation arm
-            if (gamepad2.triangle) {
+            if (gamepad2.left_stick_y < -0.5) {
                 arm_rot.setPower(1);
-            } else if (gamepad2.square) {
+            } else if (gamepad2.right_stick_y > 0.5) {
                 arm_rot.setPower(-1);
             }
 
