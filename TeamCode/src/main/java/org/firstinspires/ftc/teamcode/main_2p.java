@@ -13,12 +13,13 @@ public class main_2p extends LinearOpMode {
     private DcMotor liftR;
     private DcMotor liftL;
     private DcMotor arm_rot;
-    private double claw_pos = 0;
+    private double clawPos = 0;
     private DcMotor leftFrontDrive;
     private DcMotor rightFrontDrive;
     private DcMotor leftBackDrive;
     private DcMotor rightBackDrive;
     private int targetLiftPos = 0;
+    private int minLift = 0;
 
     @Override
     public void runOpMode() {
@@ -83,7 +84,7 @@ public class main_2p extends LinearOpMode {
             telemetry.addData("Lift Position L", liftPosL);
             telemetry.addLine();
 
-            telemetry.addData("claw_pos", claw_pos);
+            telemetry.addData("clawPos", clawPos);
             telemetry.addLine();
 
 
@@ -128,13 +129,13 @@ public class main_2p extends LinearOpMode {
             //claw TWEAK HERE
             if (gamepad2.triangle) {
                 claw.setPosition(0.8);
-                claw_pos = 0.8;
+                clawPos = 0.8;
             }else if(gamepad2.circle) {
                 claw.setPosition(0.6);
-                claw_pos = 0.6;
+                clawPos = 0.6;
             }else if(gamepad2.cross) {
                 claw.setPosition(0.45);
-                claw_pos = 0.45;
+                clawPos = 0.45;
             }
 
             //extention arm
@@ -147,23 +148,36 @@ public class main_2p extends LinearOpMode {
             }
 
             //rotation arm
-            if (gamepad2.left_stick_y < -0.5) {
-                arm_rot.setPower(1);
+            if (gamepad2.right_stick_y < -0.5) {
+                arm_rot.setPower(0.9 );
             } else if (gamepad2.right_stick_y > 0.5) {
-                arm_rot.setPower(-1);
+                arm_rot.setPower(-0.9);
+            }else{
+                arm_rot.setPower(0);
             }
 
             //lift
             if (gamepad2.left_stick_y < -0.5) {
                 targetLiftPos += 15;
+                if (gamepad2.left_trigger >= 0.9) {
+                    targetLiftPos -= 10;
+                }
             } else if (gamepad2.left_stick_y > 0.5) {
                 targetLiftPos -= 15;
+                if (gamepad2.left_trigger >= 0.9) {
+                    targetLiftPos += 10;
+                }
             }
 
             // Clamp target position within limits (tune these)
-            targetLiftPos = Math.max(0, Math.min(targetLiftPos, 2700));
+            if (gamepad2.left_trigger >= 0.9) {
+                minLift = targetLiftPos;
+                gamepad2.rumble(500);
+            } else {
+                targetLiftPos = Math.max(minLift, Math.min(targetLiftPos, 2700+minLift));
+            }
 
-            if (targetLiftPos >= 2650) {
+            if (targetLiftPos >= 2650+minLift) {
                 gamepad2.rumble(500);
             }
 
