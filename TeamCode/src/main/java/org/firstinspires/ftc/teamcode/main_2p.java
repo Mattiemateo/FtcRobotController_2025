@@ -9,10 +9,10 @@ import com.qualcomm.robotcore.hardware.Servo;
 @TeleOp
 public class main_2p extends LinearOpMode {
     private Servo claw;
-
     private CRServo arm_extend;
     private DcMotor liftR;
     private DcMotor liftL;
+    private DcMotor arm_rot;
     boolean is_open_claw = true;
     private DcMotor leftFrontDrive;
     private DcMotor rightFrontDrive;
@@ -29,6 +29,7 @@ public class main_2p extends LinearOpMode {
 
         claw = hardwareMap.get(Servo.class, "claw");
         arm_extend = hardwareMap.get(CRServo.class, "armext");
+        arm_rot = hardwareMap.get(DcMotor.class, "armrot");
 
         liftR = hardwareMap.get(DcMotor.class, "liftR");
         liftL = hardwareMap.get(DcMotor.class, "liftL");
@@ -41,7 +42,7 @@ public class main_2p extends LinearOpMode {
 
         // Lift motor setup
         liftL.setDirection(DcMotor.Direction.REVERSE); // So both go "up" with + power
-        liftR.setDirection(DcMotor.Direction.FORWARD);
+        liftR.setDirection(DcMotor.Direction.REVERSE);
 
         // Reset encoders
         liftL.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
@@ -69,6 +70,21 @@ public class main_2p extends LinearOpMode {
             telemetry.addData("Target Pos", targetLiftPos);
             telemetry.addData("Lift Position R", liftPosR);
             telemetry.addData("Lift Position L", liftPosL);
+
+            telemetry.addData("Status", "Waiting for input");
+            telemetry.addData("lx1", gamepad1.left_stick_x);
+            telemetry.addData("ly1", gamepad1.left_stick_y);
+            telemetry.addData("rx1", gamepad1.right_stick_x);
+
+            telemetry.addData("lx2", gamepad2.left_stick_x);
+            telemetry.addData("ry2", gamepad2.right_stick_y);
+            telemetry.addData("rx2", gamepad2.right_stick_x);
+
+            telemetry.addData("is_open_claw", is_open_claw);
+            telemetry.addData("Lift_pos_r", liftPosR);
+            telemetry.addData("Lift_pos_l", liftPosL);
+
+
             telemetry.update();
 
             // Driving
@@ -101,7 +117,13 @@ public class main_2p extends LinearOpMode {
             rightFrontDrive.setPower(rightFront * scale);
             rightBackDrive.setPower(rightBack * scale);
 
+            //reset
+            if (gamepad2.start) {
+                targetLiftPos = 0;
+                claw.setPosition(0.6);
+            }
 
+            //claw
             if (gamepad2.square) {
                 if (is_open_claw){
                     claw.setPosition(0.6);
@@ -114,29 +136,43 @@ public class main_2p extends LinearOpMode {
                 }
             }
 
-            if(gamepad2.dpad_left){
+            //extention arm
+            if(gamepad2.right_stick_x < -0.5){
                 arm_extend.setPower(1);
-            }else if (gamepad2.dpad_right){
+            }else if (gamepad2.right_stick_x > 0.5){
                 arm_extend.setPower(-1);
             }else{
                 arm_extend.setPower(0);
             }
 
-            if (gamepad2.dpad_up) {
-                targetLiftPos += 5;
-            } else if (gamepad2.dpad_down) {
-                targetLiftPos -= 5;
+            //rotation arm
+            if (gamepad2.triangle) {
+                arm_rot.setPower(1);
+            } else if (gamepad2.square) {
+                arm_rot.setPower(-1);
             }
 
-            // Lift control (step size = 200 for example)
-            if (gamepad2.dpad_up) {
-                targetLiftPos += 50;  // Raise
-            } else if (gamepad2.dpad_down) {
-                targetLiftPos -= 50;  // Lower
+            //lift
+            if (gamepad2.left_stick_y < -0.5) {
+                targetLiftPos += 15;
+            } else if (gamepad2.left_stick_y > 0.5) {
+                targetLiftPos -= 15;
             }
 
             // Clamp target position within limits (tune these)
-            targetLiftPos = Math.max(0, Math.min(targetLiftPos, 2750));
+            targetLiftPos = Math.max(0, Math.min(targetLiftPos, 2700));
+
+            if (targetLiftPos >= 2650) {
+                gamepad2.rumble(500);
+            }
+
+            // ptort
+            if (gamepad1.touchpad_finger_1) {
+                gamepad2.rumble(200);
+            }
+            if (gamepad2.touchpad_finger_1) {
+                gamepad1.rumble(200);
+            }
 
             // Apply target to both motors
             liftR.setTargetPosition(targetLiftPos);
