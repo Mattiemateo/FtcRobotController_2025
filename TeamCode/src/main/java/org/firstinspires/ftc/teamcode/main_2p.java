@@ -2,17 +2,22 @@ package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.Servo;
 
 @TeleOp
-public class LinearTest extends LinearOpMode {
+public class main_2p extends LinearOpMode {
+    private Servo claw;
+
+    private CRServo arm_extend;
     private DcMotor liftR;
     private DcMotor liftL;
+    boolean is_open_claw = true;
     private DcMotor leftFrontDrive;
     private DcMotor rightFrontDrive;
     private DcMotor leftBackDrive;
     private DcMotor rightBackDrive;
-
     private int targetLiftPos = 0;
 
     @Override
@@ -21,6 +26,9 @@ public class LinearTest extends LinearOpMode {
         rightFrontDrive = hardwareMap.get(DcMotor.class, "rightFrontDrive");
         leftBackDrive = hardwareMap.get(DcMotor.class, "leftBackDrive");
         rightBackDrive = hardwareMap.get(DcMotor.class, "rightBackDrive");
+
+        claw = hardwareMap.get(Servo.class, "claw");
+        arm_extend = hardwareMap.get(CRServo.class, "armext");
 
         liftR = hardwareMap.get(DcMotor.class, "liftR");
         liftL = hardwareMap.get(DcMotor.class, "liftL");
@@ -93,6 +101,33 @@ public class LinearTest extends LinearOpMode {
             rightFrontDrive.setPower(rightFront * scale);
             rightBackDrive.setPower(rightBack * scale);
 
+
+            if (gamepad2.square) {
+                if (is_open_claw){
+                    claw.setPosition(0.6);
+                    is_open_claw = false;
+                }
+            }else if(gamepad2.cross) {
+                if (!is_open_claw){
+                    claw.setPosition(0.4);
+                    is_open_claw = true;
+                }
+            }
+
+            if(gamepad2.dpad_left){
+                arm_extend.setPower(1);
+            }else if (gamepad2.dpad_right){
+                arm_extend.setPower(-1);
+            }else{
+                arm_extend.setPower(0);
+            }
+
+            if (gamepad2.dpad_up) {
+                targetLiftPos += 5;
+            } else if (gamepad2.dpad_down) {
+                targetLiftPos -= 5;
+            }
+
             // Lift control (step size = 200 for example)
             if (gamepad2.dpad_up) {
                 targetLiftPos += 50;  // Raise
@@ -101,7 +136,7 @@ public class LinearTest extends LinearOpMode {
             }
 
             // Clamp target position within limits (tune these)
-            targetLiftPos = Math.max(0, Math.min(targetLiftPos, 50000));
+            targetLiftPos = Math.max(0, Math.min(targetLiftPos, 2750));
 
             // Apply target to both motors
             liftR.setTargetPosition(targetLiftPos);
