@@ -149,11 +149,11 @@ public class main_2p extends LinearOpMode {
 
             //rotation arm
             if (gamepad2.right_stick_y < -0.5) {
-                arm_rot.setPower(0.9 );
+                arm_rot.setPower(0.9);
             } else if (gamepad2.right_stick_y > 0.5) {
                 arm_rot.setPower(-0.9);
             }else{
-                arm_rot.setPower(0);
+                arm_rot.setPower(0.4);
             }
 
             //lift
