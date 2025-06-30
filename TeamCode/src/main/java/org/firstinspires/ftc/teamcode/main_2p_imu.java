@@ -5,9 +5,14 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.IMU;
+import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
+
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 
 @TeleOp
-public class main_2p extends LinearOpMode {
+public class main_2p_imu extends LinearOpMode {
     private Servo claw;
     private CRServo arm_extend;
     private DcMotor liftR;
@@ -21,8 +26,11 @@ public class main_2p extends LinearOpMode {
     private int targetLiftPos = 0;
     private int minLift = 0;
 
+    private IMU imu;
+
     @Override
     public void runOpMode() {
+        // Initialize motors and servos
         leftFrontDrive = hardwareMap.get(DcMotor.class, "leftFrontDrive");
         rightFrontDrive = hardwareMap.get(DcMotor.class, "rightFrontDrive");
         leftBackDrive = hardwareMap.get(DcMotor.class, "leftBackDrive");
@@ -31,33 +39,36 @@ public class main_2p extends LinearOpMode {
         claw = hardwareMap.get(Servo.class, "claw");
         arm_extend = hardwareMap.get(CRServo.class, "armext");
         arm_rot = hardwareMap.get(DcMotor.class, "armrot");
-
         liftR = hardwareMap.get(DcMotor.class, "liftR");
         liftL = hardwareMap.get(DcMotor.class, "liftL");
 
-        // Drive motor setup
+        // Motor directions
         leftFrontDrive.setDirection(DcMotor.Direction.FORWARD);
         rightFrontDrive.setDirection(DcMotor.Direction.REVERSE);
         leftBackDrive.setDirection(DcMotor.Direction.FORWARD);
         rightBackDrive.setDirection(DcMotor.Direction.REVERSE);
-
-        // Lift motor setup
-        liftL.setDirection(DcMotor.Direction.REVERSE); // So both go "up" with + power
+        liftL.setDirection(DcMotor.Direction.REVERSE);
         liftR.setDirection(DcMotor.Direction.REVERSE);
 
-        // Reset encoders
+        // Lift setup
         liftL.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         liftR.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-
         liftL.setTargetPosition(0);
         liftR.setTargetPosition(0);
-
-        // Use encoder and position control
         liftL.setMode(DcMotor.RunMode.RUN_TO_POSITION);
         liftR.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-
         liftL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         liftR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
+        // IMU setup for BHI260AP
+        imu = hardwareMap.get(IMU.class, "imu");
+        IMU.Parameters imuParams = new IMU.Parameters(
+                new RevHubOrientationOnRobot(
+                        RevHubOrientationOnRobot.LogoFacingDirection.RIGHT,
+                        RevHubOrientationOnRobot.UsbFacingDirection.UP
+                )
+        );
+        imu.initialize(imuParams);
 
         telemetry.addData("Status", "Initialized");
         telemetry.update();
@@ -67,6 +78,18 @@ public class main_2p extends LinearOpMode {
         while (opModeIsActive()) {
             int liftPosR = liftR.getCurrentPosition();
             int liftPosL = liftL.getCurrentPosition();
+            int armRot = arm_rot.getCurrentPosition();
+
+            // Get yaw, pitch, roll from IMU
+            YawPitchRollAngles orientation = imu.getRobotYawPitchRollAngles();
+            double yaw = orientation.getYaw(AngleUnit.DEGREES);
+            double pitch = orientation.getPitch(AngleUnit.DEGREES);
+            double roll = orientation.getRoll(AngleUnit.DEGREES);
+
+            telemetry.addData("Yaw (Z)", yaw);
+            telemetry.addData("Pitch (Y)", pitch);
+            telemetry.addData("Roll (X)", roll);
+            telemetry.addLine();
 
             telemetry.addData("Status", "Waiting for input");
             telemetry.addData("lx1", gamepad1.left_stick_x);
@@ -84,23 +107,18 @@ public class main_2p extends LinearOpMode {
             telemetry.addData("Lift Position L", liftPosL);
             telemetry.addLine();
 
+            telemetry.addData("armRot", armRot);
             telemetry.addData("clawPos", clawPos);
-            telemetry.addLine();
-
-
             telemetry.update();
 
             // Driving
             double x = gamepad1.left_stick_x;
             double y = -gamepad1.left_stick_y;
             double turn = gamepad1.right_stick_x;
-
             double theta = Math.atan2(y, x);
             double power = Math.hypot(x, y);
-
             double sin = Math.sin(theta - Math.PI / 4);
             double cos = Math.cos(theta - Math.PI / 4);
-
             double leftFront = power * cos + turn;
             double rightFront = power * sin - turn;
             double leftBack = power * sin + turn;
@@ -120,43 +138,49 @@ public class main_2p extends LinearOpMode {
             rightFrontDrive.setPower(rightFront * scale);
             rightBackDrive.setPower(rightBack * scale);
 
-            //reset
+            // Reset
             if (gamepad2.start) {
-                targetLiftPos = 0;
+                targetLiftPos = minLift;
                 claw.setPosition(0.6);
             }
 
-            //claw TWEAK HERE
+            // Claw
             if (gamepad2.triangle) {
                 claw.setPosition(0.8);
                 clawPos = 0.8;
-            }else if(gamepad2.circle) {
+            } else if (gamepad2.circle) {
                 claw.setPosition(0.6);
                 clawPos = 0.6;
-            }else if(gamepad2.cross) {
+            } else if (gamepad2.cross) {
                 claw.setPosition(0.45);
                 clawPos = 0.45;
             }
 
-            //extention arm
-            if(gamepad2.right_stick_x < -0.5){
+            // Extension
+            if (gamepad2.right_stick_x < -0.5) {
                 arm_extend.setPower(1);
-            }else if (gamepad2.right_stick_x > 0.5){
+            } else if (gamepad2.right_stick_x > 0.5) {
                 arm_extend.setPower(-1);
-            }else{
+            } else {
                 arm_extend.setPower(0);
             }
 
-            //rotation arm
+            // Arm rotation
             if (gamepad2.right_stick_y < -0.5) {
-                arm_rot.setPower(0.9);
+                arm_rot.setPower(gamepad2.right_stick_y * -0.8);
             } else if (gamepad2.right_stick_y > 0.5) {
-                arm_rot.setPower(-0.9);
-            }else{
-                arm_rot.setPower(0.4);
+                arm_rot.setPower(gamepad2.right_stick_y * -0.2);
+            } else {
+                if (arm_rot.getCurrentPosition() <= 225) {
+                    arm_rot.setPower(0.4);
+                } else if (arm_rot.getCurrentPosition() >= 345) {
+                    arm_rot.setPower(-0.4);
+                } else {
+                    arm_rot.setPower(-0.6 * Math.cos(Math.toRadians(armRot - 230)));
+                }
             }
 
-            //lift
+            // Lift
             if (gamepad2.left_stick_y < -0.5) {
                 targetLiftPos += 15;
                 if (gamepad2.left_trigger >= 0.9) {
@@ -169,30 +193,24 @@ public class main_2p extends LinearOpMode {
                 }
             }
 
-            // Clamp target position within limits (tune these)
             if (gamepad2.left_trigger >= 0.9) {
                 minLift = targetLiftPos;
                 gamepad2.rumble(500);
             } else {
-                targetLiftPos = Math.max(minLift, Math.min(targetLiftPos, 2700+minLift));
+                targetLiftPos = Math.max(minLift, Math.min(targetLiftPos, 2700 + minLift));
             }
 
-            if (targetLiftPos >= 2650+minLift) {
+            if (targetLiftPos >= 2650 + minLift) {
                 gamepad2.rumble(500);
             }
 
-            // ptort
-            if (gamepad1.touchpad_finger_1) {
-                gamepad2.rumble(200);
-            }
-            if (gamepad2.touchpad_finger_1) {
-                gamepad1.rumble(200);
-            }
+            // Touchpad ping
+            if (gamepad1.touchpad_finger_1) gamepad2.rumble(200);
+            if (gamepad2.touchpad_finger_1) gamepad1.rumble(200);
 
-            // Apply target to both motors
+            // Apply lift target
             liftR.setTargetPosition(targetLiftPos);
             liftL.setTargetPosition(targetLiftPos);
-
             liftR.setPower(1.0);
             liftL.setPower(1.0);
         }

@@ -2,19 +2,30 @@ package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
+
 import com.qualcomm.hardware.bosch.BNO055IMU;
 import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
 @Autonomous
 public class Auto extends LinearOpMode {
-
-    private DcMotor arm, wrist;
-    private Servo claw, intake;
-    private DcMotor leftFrontDrive, rightFrontDrive, leftBackDrive, rightBackDrive;
+    private Servo claw;
+    private CRServo arm_extend;
+    private DcMotor liftR;
+    private DcMotor liftL;
+    private DcMotor arm_rot;
+    private double clawPos = 0;
+    private DcMotor leftFrontDrive;
+    private DcMotor rightFrontDrive;
+    private DcMotor leftBackDrive;
+    private DcMotor rightBackDrive;
+    private int targetLiftPos = 0;
+    private int minLift = 0;
     private BNO055IMU imu;
+
 
     @Override
     public void runOpMode() throws InterruptedException {
@@ -23,28 +34,37 @@ public class Auto extends LinearOpMode {
         rightFrontDrive = hardwareMap.get(DcMotor.class, "rightFrontDrive");
         leftBackDrive = hardwareMap.get(DcMotor.class, "leftBackDrive");
         rightBackDrive = hardwareMap.get(DcMotor.class, "rightBackDrive");
-        arm = hardwareMap.get(DcMotor.class, "arm");
-        wrist = hardwareMap.get(DcMotor.class, "wrist");
-        claw = hardwareMap.get(Servo.class, "claw");
-        intake = hardwareMap.get(Servo.class, "intake");
 
-        // Set drive directions
+        claw = hardwareMap.get(Servo.class, "claw");
+        arm_extend = hardwareMap.get(CRServo.class, "armext");
+        arm_rot = hardwareMap.get(DcMotor.class, "armrot");
+
+        liftR = hardwareMap.get(DcMotor.class, "liftR");
+        liftL = hardwareMap.get(DcMotor.class, "liftL");
+
+        // Drive motor setup
         leftFrontDrive.setDirection(DcMotor.Direction.FORWARD);
         rightFrontDrive.setDirection(DcMotor.Direction.REVERSE);
         leftBackDrive.setDirection(DcMotor.Direction.FORWARD);
         rightBackDrive.setDirection(DcMotor.Direction.REVERSE);
 
-        // IMU setup
-        imu = hardwareMap.get(BNO055IMU.class, "imu");
-        BNO055IMU.Parameters imuParams = new BNO055IMU.Parameters();
-        imuParams.angleUnit = BNO055IMU.AngleUnit.DEGREES;
-        imuParams.accelUnit = BNO055IMU.AccelUnit.METERS_PERSEC_PERSEC;
-        imuParams.loggingEnabled = false;
-        imu.initialize(imuParams);
+        // Lift motor setup
+        liftL.setDirection(DcMotor.Direction.REVERSE); // So both go "up" with + power
+        liftR.setDirection(DcMotor.Direction.REVERSE);
 
-        // Encoder modes
-        arm.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        wrist.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        // Reset encoders
+        liftL.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        liftR.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+
+        liftL.setTargetPosition(0);
+        liftR.setTargetPosition(0);
+
+        // Use encoder and position control
+        liftL.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        liftR.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+
+        liftL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        liftR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         telemetry.addData("Status", "Initialized");
         telemetry.update();
@@ -55,6 +75,34 @@ public class Auto extends LinearOpMode {
         Thread imuTelemetryThread = new Thread(() -> {
             while (opModeIsActive()) {
                 telemetry.addData("IMU Heading", getHeading());
+                telemetry.addLine();
+
+                int liftPosR = liftR.getCurrentPosition();
+                int liftPosL = liftL.getCurrentPosition();
+                int armRot = arm_rot.getCurrentPosition();
+
+                telemetry.addData("Status", "Waiting for input");
+                telemetry.addData("lx1", gamepad1.left_stick_x);
+                telemetry.addData("ly1", gamepad1.left_stick_y);
+                telemetry.addData("rx1", gamepad1.right_stick_x);
+                telemetry.addLine();
+
+                telemetry.addData("lx2", gamepad2.left_stick_x);
+                telemetry.addData("ry2", gamepad2.right_stick_y);
+                telemetry.addData("rx2", gamepad2.right_stick_x);
+                telemetry.addLine();
+
+                telemetry.addData("Target Pos", targetLiftPos);
+                telemetry.addData("Lift Position R", liftPosR);
+                telemetry.addData("Lift Position L", liftPosL);
+                telemetry.addLine();
+
+                telemetry.addData("armRot", armRot);
+                telemetry.addData("clawPos", clawPos);
+
+                telemetry.update();
+
+
                 telemetry.update();
                 sleep(100);
             }
@@ -87,15 +135,15 @@ public class Auto extends LinearOpMode {
     // === HELPERS ===
 
     private void moveArmToPosition(int pos, double power) {
-        arm.setTargetPosition(pos);
-        arm.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        arm.setPower(power);
-        while (opModeIsActive() && arm.isBusy()) {
+        arm_rot.setTargetPosition(pos);
+        arm_rot.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        arm_rot.setPower(power);
+        while (opModeIsActive() && arm_rot.isBusy()) {
             telemetry.addData("Arm Target", pos);
-            telemetry.addData("Arm Current", arm.getCurrentPosition());
+            telemetry.addData("Arm Current", arm_rot.getCurrentPosition());
             telemetry.update();
         }
-        arm.setPower(0);
+        arm_rot.setPower(0);
     }
 
     private void driveForwardTime(int ms, double power) {
