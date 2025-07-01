@@ -5,6 +5,7 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.IMU;
 import com.qualcomm.robotcore.hardware.Servo;
 
@@ -130,81 +131,104 @@ public class Auto extends LinearOpMode {
 
         // === AUTONOMOUS ROUTINE ===
         if (opModeIsActive()) {
-            // Move arm to 1000
-            moveArmToPosition(1000, 0.5);
-            sleep(1000);
-
-            // Move arm to 2000
-            moveArmToPosition(2000, 0.5);
-            sleep(1000);
-
-            // Claw half open
-            claw.setPosition(0.5);
-            sleep(500);
-
-            // Turn to 90 degrees
-            turnToAngle(90, 0.25);
-            sleep(500);
-
-            // Drive forward 1 second
-            driveForwardTime(1000, 0.4);
+            Thread base_movement = new Thread(() -> {
+                sleep(1000);
+                driveYTime(1000, 0.5);
+                sleep(1000);
+                driveXTime(1000, 0.5);
+                sleep(1000);
+                driveYTime(650, 0.5);
+                sleep(3000);
+                driveYTime(950, -1);
+                sleep(950);
+                driveXTime(2000, 0.5);
+                turnToAngle(300, 1);
+                sleep(500);
+                driveYTime(1500, 0.5);
+                sleep(500);
+                driveXTime(700, 0.5);
+                driveYTime(1900,0.6);
+                driveYTime(1900,0.6);
+                driveXTime(700, 0.5);
+                driveYTime(1900,0.6);
+                turnToAngle(50, -0.5);
+                driveYTime(1900,0.6);
+                driveXTime(850, 0.5);
+                driveYTime(1900,0.6);
+            });
         }
     }
 
     // === HELPERS ===
-
-    private void moveArmToPosition(int pos, double power) {
-        arm_rot.setTargetPosition(pos);
-        arm_rot.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        arm_rot.setPower(power);
-        while (opModeIsActive() && arm_rot.isBusy()) {
-            telemetry.addLine();
-            telemetry.addData("Arm Target", pos);
-            telemetry.addData("Arm Current", arm_rot.getCurrentPosition());
-            telemetry.update();
-        }
-        arm_rot.setPower(0);
-    }
-
-    private void driveForwardTime(int ms, double power) {
-        double targetHeading = getHeading();
+    private void driveYTime(int ms, double power) {
+        double targetHeading = getHeading(); // desired direction in degrees
         long startTime = System.currentTimeMillis();
 
         while (opModeIsActive() && System.currentTimeMillis() - startTime < ms) {
             double currentHeading = getHeading();
             double error = angleDifference(targetHeading, currentHeading);
 
-            // Simple proportional correction
-            double kP = 0.015; // Tune this value
+            // Proportional heading correction
+            double kP = 0.015; // tune for your bot
             double correction = error * kP;
 
-            // Left side gets less power if drifting right, and vice versa
-            leftFrontDrive.setPower(power + correction);
-            leftBackDrive.setPower(power + correction);
-            rightFrontDrive.setPower(power - correction);
-            rightBackDrive.setPower(power - correction);
+            // Flip correction if driving backwards
+            double directionSign = Math.signum(power);
+
+            double leftPower  = power + directionSign * correction;
+            double rightPower = power - directionSign * correction;
+
+            leftFrontDrive.setPower(leftPower);
+            leftBackDrive.setPower(leftPower);
+            rightFrontDrive.setPower(rightPower);
+            rightBackDrive.setPower(rightPower);
 
             telemetry.addLine();
             telemetry.addData("Heading", currentHeading);
+            telemetry.addData("Target", targetHeading);
             telemetry.addData("Error", error);
             telemetry.addData("Correction", correction);
-            telemetry.addData("kP", kP);
             telemetry.update();
         }
 
         stopDrive();
     }
 
+    private void driveXTime(int ms, double power) {
+        double targetHeading = getHeading(); // Keep the bot facing same way
+        long startTime = System.currentTimeMillis();
 
-    private void stopDrive() {
-        leftFrontDrive.setPower(0);
-        rightFrontDrive.setPower(0);
-        leftBackDrive.setPower(0);
-        rightBackDrive.setPower(0);
-    }
+        while (opModeIsActive() && System.currentTimeMillis() - startTime < ms) {
+            double currentHeading = getHeading();
+            double error = angleDifference(targetHeading, currentHeading);
 
-    private double getHeading() {
-        return imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
+            // Proportional heading correction
+            double kP = 0.015; // adjust as needed
+            double correction = error * kP;
+
+            // Flip correction depending on strafe direction
+            double directionSign = Math.signum(power);
+
+            // Strafing power layout (mecanum wheels)
+            double leftFrontPower  =  power - directionSign * correction;
+            double rightFrontPower = -power + directionSign * correction;
+            double leftBackPower   = -power - directionSign * correction;
+            double rightBackPower  =  power + directionSign * correction;
+
+            leftFrontDrive.setPower(leftFrontPower);
+            rightFrontDrive.setPower(rightFrontPower);
+            leftBackDrive.setPower(leftBackPower);
+            rightBackDrive.setPower(rightBackPower);
+
+            telemetry.addLine();
+            telemetry.addData("Heading", currentHeading);
+            telemetry.addData("Target", targetHeading);
+            telemetry.addData("Error", error);
+            telemetry.addData("Correction", correction);
+            telemetry.update();
+        }
+
+        stopDrive();
     }
 
     private void turnToAngle(double targetAngle, double power) {
@@ -223,10 +247,56 @@ public class Auto extends LinearOpMode {
         stopDrive();
     }
 
+    private void stopDrive() {
+        leftFrontDrive.setPower(0);
+        rightFrontDrive.setPower(0);
+        leftBackDrive.setPower(0);
+        rightBackDrive.setPower(0);
+    }
+
+    private double getHeading() {
+        return imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
+    }
+
     private double angleDifference(double target, double current) {
         double diff = target - current;
         while (diff > 180) diff -= 360;
         while (diff < -180) diff += 360;
         return diff;
     }
+
+    private void moveClaw(double clawpos) {
+        claw.setPosition(clawpos);
+    }
+
+    private void moveLift(int pos, double power) {
+        liftL.setTargetPosition(pos);
+        liftR.setTargetPosition(pos);
+        liftL.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        liftR.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        liftL.setPower(power);
+        liftR.setPower(power);
+        while (opModeIsActive() && liftL.isBusy() && liftR.isBusy()) {
+            telemetry.addLine();
+            telemetry.addData("Lift Target", pos);
+            telemetry.addData("Lift Current", ((liftL.getCurrentPosition() + liftR.getCurrentPosition()) / 2));
+            telemetry.update();
+        }
+        liftL.setPower(0);
+        liftR.setPower(0);
+    }
+
+    private void moveArmRot(int pos, double power) {
+        arm_rot.setTargetPosition(pos);
+        arm_rot.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        arm_rot.setPower(power);
+        while (opModeIsActive() && arm_rot.isBusy()) {
+            telemetry.addLine();
+            telemetry.addData("Arm Target", pos);
+            telemetry.addData("Arm Current", arm_rot.getCurrentPosition());
+            telemetry.update();
+        }
+        arm_rot.setPower(0);
+    }
+
 }

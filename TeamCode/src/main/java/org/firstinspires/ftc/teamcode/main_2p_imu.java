@@ -51,6 +51,8 @@ public class main_2p_imu extends LinearOpMode {
         liftL.setDirection(DcMotor.Direction.REVERSE);
         liftR.setDirection(DcMotor.Direction.REVERSE);
 
+        arm_rot.setTargetPosition(0);
+        arm_rot.setTargetPosition(0);
         arm_rot.setMode(DcMotor.RunMode.RUN_TO_POSITION);
         arm_rot.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
