@@ -1,14 +1,15 @@
 package org.firstinspires.ftc.teamcode;
 
+import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.IMU;
 import com.qualcomm.robotcore.hardware.Servo;
 
-import com.qualcomm.hardware.bosch.BNO055IMU;
-import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 
 @Autonomous
 public class Auto extends LinearOpMode {
@@ -24,8 +25,8 @@ public class Auto extends LinearOpMode {
     private DcMotor rightBackDrive;
     private int targetLiftPos = 0;
     private int minLift = 0;
-    private BNO055IMU imu;
 
+    private IMU imu;
 
     @Override
     public void runOpMode() throws InterruptedException {
@@ -66,6 +67,16 @@ public class Auto extends LinearOpMode {
         liftL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         liftR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
+        // IMU setup for BHI260AP
+        imu = hardwareMap.get(IMU.class, "imu");
+        IMU.Parameters imuParams = new IMU.Parameters(
+            new RevHubOrientationOnRobot(
+                RevHubOrientationOnRobot.LogoFacingDirection.RIGHT,
+                RevHubOrientationOnRobot.UsbFacingDirection.UP
+            )
+        );
+        imu.initialize(imuParams);
+
         telemetry.addData("Status", "Initialized");
         telemetry.update();
 
@@ -80,6 +91,17 @@ public class Auto extends LinearOpMode {
                 int liftPosR = liftR.getCurrentPosition();
                 int liftPosL = liftL.getCurrentPosition();
                 int armRot = arm_rot.getCurrentPosition();
+
+                // Get yaw, pitch, roll from IMU
+                YawPitchRollAngles orientation = imu.getRobotYawPitchRollAngles();
+                double yaw = orientation.getYaw(AngleUnit.DEGREES);
+                double pitch = orientation.getPitch(AngleUnit.DEGREES);
+                double roll = orientation.getRoll(AngleUnit.DEGREES);
+
+                telemetry.addData("Yaw (Z)", yaw);
+                telemetry.addData("Pitch (Y)", pitch);
+                telemetry.addData("Roll (X)", roll);
+                telemetry.addLine();
 
                 telemetry.addData("Status", "Waiting for input");
                 telemetry.addData("lx1", gamepad1.left_stick_x);
@@ -99,9 +121,6 @@ public class Auto extends LinearOpMode {
 
                 telemetry.addData("armRot", armRot);
                 telemetry.addData("clawPos", clawPos);
-
-                telemetry.update();
-
 
                 telemetry.update();
                 sleep(100);
@@ -139,6 +158,7 @@ public class Auto extends LinearOpMode {
         arm_rot.setMode(DcMotor.RunMode.RUN_TO_POSITION);
         arm_rot.setPower(power);
         while (opModeIsActive() && arm_rot.isBusy()) {
+            telemetry.addLine();
             telemetry.addData("Arm Target", pos);
             telemetry.addData("Arm Current", arm_rot.getCurrentPosition());
             telemetry.update();
@@ -147,13 +167,34 @@ public class Auto extends LinearOpMode {
     }
 
     private void driveForwardTime(int ms, double power) {
-        leftFrontDrive.setPower(power);
-        rightFrontDrive.setPower(power);
-        leftBackDrive.setPower(power);
-        rightBackDrive.setPower(power);
-        sleep(ms);
+        double targetHeading = getHeading();
+        long startTime = System.currentTimeMillis();
+
+        while (opModeIsActive() && System.currentTimeMillis() - startTime < ms) {
+            double currentHeading = getHeading();
+            double error = angleDifference(targetHeading, currentHeading);
+
+            // Simple proportional correction
+            double kP = 0.015; // Tune this value
+            double correction = error * kP;
+
+            // Left side gets less power if drifting right, and vice versa
+            leftFrontDrive.setPower(power + correction);
+            leftBackDrive.setPower(power + correction);
+            rightFrontDrive.setPower(power - correction);
+            rightBackDrive.setPower(power - correction);
+
+            telemetry.addLine();
+            telemetry.addData("Heading", currentHeading);
+            telemetry.addData("Error", error);
+            telemetry.addData("Correction", correction);
+            telemetry.addData("kP", kP);
+            telemetry.update();
+        }
+
         stopDrive();
     }
+
 
     private void stopDrive() {
         leftFrontDrive.setPower(0);
@@ -163,8 +204,7 @@ public class Auto extends LinearOpMode {
     }
 
     private double getHeading() {
-        Orientation angles = imu.getAngularOrientation();
-        return AngleUnit.DEGREES.fromUnit(angles.angleUnit, angles.firstAngle);
+        return imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
     }
 
     private void turnToAngle(double targetAngle, double power) {

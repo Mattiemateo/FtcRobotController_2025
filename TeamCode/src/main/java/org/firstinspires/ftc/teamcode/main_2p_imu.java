@@ -24,6 +24,7 @@ public class main_2p_imu extends LinearOpMode {
     private DcMotor leftBackDrive;
     private DcMotor rightBackDrive;
     private int targetLiftPos = 0;
+    private int targetArmRotPos = 0;
     private int minLift = 0;
 
     private IMU imu;
@@ -49,6 +50,9 @@ public class main_2p_imu extends LinearOpMode {
         rightBackDrive.setDirection(DcMotor.Direction.REVERSE);
         liftL.setDirection(DcMotor.Direction.REVERSE);
         liftR.setDirection(DcMotor.Direction.REVERSE);
+
+        arm_rot.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        arm_rot.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         // Lift setup
         liftL.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
@@ -107,7 +111,8 @@ public class main_2p_imu extends LinearOpMode {
             telemetry.addData("Lift Position L", liftPosL);
             telemetry.addLine();
 
-            telemetry.addData("armRot", armRot);
+            telemetry.addData("Target Rot", targetArmRotPos);
+            telemetry.addData("Arm Rot", armRot);
             telemetry.addData("clawPos", clawPos);
             telemetry.update();
 
@@ -167,17 +172,11 @@ public class main_2p_imu extends LinearOpMode {
 
             // Arm rotation
             if (gamepad2.right_stick_y < -0.5) {
-                arm_rot.setPower(gamepad2.right_stick_y * -0.8);
+                targetArmRotPos += 5;
+                arm_rot.setTargetPosition(targetArmRotPos);
             } else if (gamepad2.right_stick_y > 0.5) {
-                arm_rot.setPower(gamepad2.right_stick_y * -0.2);
-            } else {
-                if (arm_rot.getCurrentPosition() <= 225) {
-                    arm_rot.setPower(0.4);
-                } else if (arm_rot.getCurrentPosition() >= 345) {
-                    arm_rot.setPower(-0.4);
-                } else {
-                    arm_rot.setPower(-0.6 * Math.cos(Math.toRadians(armRot - 230)));
-                }
+                targetArmRotPos -= 5;
+                arm_rot.setTargetPosition(targetArmRotPos);
             }
 
             // Lift
@@ -204,15 +203,15 @@ public class main_2p_imu extends LinearOpMode {
                 gamepad2.rumble(500);
             }
 
-            // Touchpad ping
-            if (gamepad1.touchpad_finger_1) gamepad2.rumble(200);
-            if (gamepad2.touchpad_finger_1) gamepad1.rumble(200);
-
             // Apply lift target
             liftR.setTargetPosition(targetLiftPos);
             liftL.setTargetPosition(targetLiftPos);
             liftR.setPower(1.0);
             liftL.setPower(1.0);
+
+            // Touchpad ping
+            if (gamepad1.touchpad_finger_1) gamepad2.rumble(200);
+            if (gamepad2.touchpad_finger_1) gamepad1.rumble(200);
         }
     }
 }
