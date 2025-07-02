@@ -26,7 +26,7 @@ public class main_2p_imu extends LinearOpMode {
     private int targetLiftPos = 0;
     private int targetArmRotPos = 0;
     private int minLift = 0;
-
+    private boolean hasRumbled = false;
     private IMU imu;
 
     @Override
@@ -51,10 +51,7 @@ public class main_2p_imu extends LinearOpMode {
         liftL.setDirection(DcMotor.Direction.REVERSE);
         liftR.setDirection(DcMotor.Direction.REVERSE);
 
-        arm_rot.setTargetPosition(0);
-        arm_rot.setTargetPosition(0);
-        arm_rot.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        arm_rot.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        //arm_rot.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         // Lift setup
         liftL.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
@@ -120,7 +117,7 @@ public class main_2p_imu extends LinearOpMode {
 
             // Driving
             double x = gamepad1.left_stick_x;
-            double y = -gamepad1.left_stick_y;
+            double y = gamepad1.left_stick_y;
             double turn = gamepad1.right_stick_x;
             double theta = Math.atan2(y, x);
             double power = Math.hypot(x, y);
@@ -172,14 +169,21 @@ public class main_2p_imu extends LinearOpMode {
                 arm_extend.setPower(0);
             }
 
-            // Arm rotation
+            //rotation arm
             if (gamepad2.right_stick_y < -0.5) {
-                targetArmRotPos += 5;
-                arm_rot.setTargetPosition(targetArmRotPos);
+                arm_rot.setPower(gamepad2.right_stick_y * -0.8);
             } else if (gamepad2.right_stick_y > 0.5) {
-                targetArmRotPos -= 5;
-                arm_rot.setTargetPosition(targetArmRotPos);
+                arm_rot.setPower(0);
+            }else{
+                if (arm_rot.getCurrentPosition() <= 230) {
+                    arm_rot.setPower(0.4);
+                }else{
+                    arm_rot.setPower(-0.3);
+                }
+
             }
+
+
 
             // Lift
             if (gamepad2.left_stick_y < -0.5) {
@@ -201,8 +205,14 @@ public class main_2p_imu extends LinearOpMode {
                 targetLiftPos = Math.max(minLift, Math.min(targetLiftPos, 2700 + minLift));
             }
 
+
             if (targetLiftPos >= 2650 + minLift) {
-                gamepad2.rumble(500);
+                if (!hasRumbled) {
+                    gamepad2.rumble(500);
+                    hasRumbled = true;
+                }
+            } else {
+                hasRumbled = false;
             }
 
             // Apply lift target
