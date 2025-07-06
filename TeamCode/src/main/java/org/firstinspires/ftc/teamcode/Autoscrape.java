@@ -13,7 +13,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 
 @Autonomous
-public class Auto extends LinearOpMode {
+public class Autoscrape extends LinearOpMode {
     private Servo claw;
     private CRServo arm_extend;
     private DcMotor liftR;
@@ -71,10 +71,10 @@ public class Auto extends LinearOpMode {
         // IMU setup for BHI260AP
         imu = hardwareMap.get(IMU.class, "imu");
         IMU.Parameters imuParams = new IMU.Parameters(
-            new RevHubOrientationOnRobot(
-                RevHubOrientationOnRobot.LogoFacingDirection.RIGHT,
-                RevHubOrientationOnRobot.UsbFacingDirection.UP
-            )
+                new RevHubOrientationOnRobot(
+                        RevHubOrientationOnRobot.LogoFacingDirection.RIGHT,
+                        RevHubOrientationOnRobot.UsbFacingDirection.UP
+                )
         );
         imu.initialize(imuParams);
 
@@ -132,30 +132,34 @@ public class Auto extends LinearOpMode {
         // === AUTONOMOUS ROUTINE ===
         if (opModeIsActive()) {
             Thread base_movement = new Thread(() -> {
+                moveClaw(0.45);
+                driveYTime(1200 , -0.8);//forward
                 sleep(1000);
-                driveYTime(1000, 0.5);
+                //turnToAngle(90, -0.5);
+                driveXTime(600, 0.5);//front of block
                 sleep(1000);
-                driveXTime(1000, 0.5);
+                driveYTime(1000, 0.8);//back ...... score
                 sleep(1000);
-                driveYTime(650, 0.5);
-                sleep(3000);
-                driveYTime(950, -1);
-                sleep(950);
-                driveXTime(2000, 0.5);
-                turnToAngle(300, 1);
-                sleep(500);
-                driveYTime(1500, 0.5);
-                sleep(500);
-                driveXTime(700, 0.5);
-                driveYTime(1900,0.6);
-                driveYTime(1900,0.6);
-                driveXTime(700, 0.5);
-                driveYTime(1900,0.6);
-                turnToAngle(50, -0.5);
-                driveYTime(1900,0.6);
-                driveXTime(850, 0.5);
-                driveYTime(1900,0.6);
+                driveXTime(400, -0.5);
+                sleep(200);
+                driveYTime(500, 0.8);
+                sleep(200);
+                driveYTime(1000, -0.8);//go front
+                sleep(1000);
+                driveXTime(300, 1);//align
+                sleep(200);
+                driveYTime(1000, 1);//back
+                sleep(200);
+                //driveYTime(1000, -1);//front
+                //sleep(200);
+                //driveXTime(1000, 1);//align
+                //sleep(200);
+                //driveYTime(1000, 1);//back
+
+                //driveXTime(500, -1);
             });
+            base_movement.start();
+            base_movement.join();
         }
     }
 
@@ -195,7 +199,7 @@ public class Auto extends LinearOpMode {
     }
 
     private void driveXTime(int ms, double power) {
-        double targetHeading = getHeading(); // Keep the bot facing same way
+        double targetHeading = getHeading();
         long startTime = System.currentTimeMillis();
 
         while (opModeIsActive() && System.currentTimeMillis() - startTime < ms) {
@@ -203,24 +207,20 @@ public class Auto extends LinearOpMode {
             double error = angleDifference(targetHeading, currentHeading);
 
             // Proportional heading correction
-            double kP = 0.015; // adjust as needed
+            double kP = 0.015;
             double correction = error * kP;
 
-            // Flip correction depending on strafe direction
-            double directionSign = Math.signum(power);
-
-            // Strafing power layout (mecanum wheels)
-            double leftFrontPower  =  power - directionSign * correction;
-            double rightFrontPower = -power + directionSign * correction;
-            double leftBackPower   = -power - directionSign * correction;
-            double rightBackPower  =  power + directionSign * correction;
+            // Proper mecanum strafing layout (power + correction)
+            double leftFrontPower  =  power + correction;
+            double rightFrontPower = -power - correction;
+            double leftBackPower   = -power + correction;
+            double rightBackPower  =  power - correction;
 
             leftFrontDrive.setPower(leftFrontPower);
             rightFrontDrive.setPower(rightFrontPower);
             leftBackDrive.setPower(leftBackPower);
             rightBackDrive.setPower(rightBackPower);
 
-            telemetry.addLine();
             telemetry.addData("Heading", currentHeading);
             telemetry.addData("Target", targetHeading);
             telemetry.addData("Error", error);
@@ -231,21 +231,59 @@ public class Auto extends LinearOpMode {
         stopDrive();
     }
 
-    private void turnToAngle(double targetAngle, double power) {
-        double heading = getHeading();
-        while (opModeIsActive() && Math.abs(angleDifference(targetAngle, heading)) > 2) {
-            double direction = angleDifference(targetAngle, heading) > 0 ? 1 : -1;
+    private void straighten() {
+        double currentHeading = getHeading();
+        double targetHeading = 0; // Adjust if your "start" heading is different
 
-            leftFrontDrive.setPower(power * direction);
-            rightFrontDrive.setPower(-power * direction);
-            leftBackDrive.setPower(power * direction);
-            rightBackDrive.setPower(-power * direction);
+        telemetry.addLine("Straightening...");
+        telemetry.addData("Current Heading", currentHeading);
+        telemetry.update();
 
-            heading = getHeading();
+        turnToAngle(targetHeading, 0.8); // Use your desired max power
+    }
+
+    private void turnToAngle(double targetAngle, double maxPower) {
+        double kP = 0.002;   // Proportional gain — tune as needed
+        double kD = 0.004;  // Derivative gain — helps dampen oscillation
+        double lastError = 0;
+        double acceptableError = 2.0;  // degrees
+
+        while (opModeIsActive()) {
+            double currentHeading = getHeading();
+            double error = angleDifference(targetAngle, currentHeading);
+            double derivative = error - lastError;
+            lastError = error;
+
+            if (Math.abs(error) <= acceptableError) break;
+
+            double turnPower = (kP * error) + (kD * derivative);
+
+            // Clamp to maxPower
+            turnPower = Math.max(-maxPower, Math.min(maxPower, turnPower));
+
+            // Prevent jitter/stalling due to too-low power
+            if (Math.abs(turnPower) < 0.08) {
+                turnPower = 0.08 * Math.signum(turnPower);
+            }
+
+            // Apply turning
+            leftFrontDrive.setPower(turnPower);
+            leftBackDrive.setPower(turnPower);
+            rightFrontDrive.setPower(-turnPower);
+            rightBackDrive.setPower(-turnPower);
+
+            telemetry.addData("Target", targetAngle);
+            telemetry.addData("Heading", currentHeading);
+            telemetry.addData("Error", error);
+            telemetry.addData("Turn Power", turnPower);
+            telemetry.update();
+            //sleep(1000);
         }
 
         stopDrive();
     }
+
+
 
     private void stopDrive() {
         leftFrontDrive.setPower(0);
@@ -264,6 +302,7 @@ public class Auto extends LinearOpMode {
         while (diff < -180) diff += 360;
         return diff;
     }
+
 
     private void moveClaw(double clawpos) {
         claw.setPosition(clawpos);
@@ -297,6 +336,18 @@ public class Auto extends LinearOpMode {
             telemetry.update();
         }
         arm_rot.setPower(0);
+    }
+
+    private void turn(int mm, float left) {
+        leftFrontDrive.setPower(0.5 * left);
+        rightFrontDrive.setPower(-0.5 * left);
+        leftBackDrive.setPower(0.5 * left);
+        rightBackDrive.setPower(-0.5 * left);
+        sleep(mm);
+        leftFrontDrive.setPower(0);
+        rightFrontDrive.setPower(0);
+        leftBackDrive.setPower(0);
+        rightBackDrive.setPower(0);
     }
 
 }

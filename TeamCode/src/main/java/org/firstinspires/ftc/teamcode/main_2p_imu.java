@@ -4,6 +4,7 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.IMU;
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
@@ -48,7 +49,7 @@ public class main_2p_imu extends LinearOpMode {
         rightFrontDrive.setDirection(DcMotor.Direction.REVERSE);
         leftBackDrive.setDirection(DcMotor.Direction.FORWARD);
         rightBackDrive.setDirection(DcMotor.Direction.REVERSE);
-        liftL.setDirection(DcMotor.Direction.REVERSE);
+        liftL.setDirection(DcMotor.Direction.FORWARD);
         liftR.setDirection(DcMotor.Direction.REVERSE);
 
         //arm_rot.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -116,7 +117,7 @@ public class main_2p_imu extends LinearOpMode {
             telemetry.update();
 
             // Driving
-            double x = gamepad1.left_stick_x;
+            double x = -gamepad1.left_stick_x;
             double y = gamepad1.left_stick_y;
             double turn = gamepad1.right_stick_x;
             double theta = Math.atan2(y, x);
@@ -171,7 +172,7 @@ public class main_2p_imu extends LinearOpMode {
 
             //rotation arm
             if (gamepad2.right_stick_y < -0.5) {
-                arm_rot.setPower(gamepad2.right_stick_y * -0.8);
+                arm_rot.setPower(gamepad2.right_stick_y * -1);
             } else if (gamepad2.right_stick_y > 0.5) {
                 arm_rot.setPower(0);
             }else{
@@ -187,13 +188,13 @@ public class main_2p_imu extends LinearOpMode {
 
             // Lift
             if (gamepad2.left_stick_y < -0.5) {
-                targetLiftPos += 15;
-                if (gamepad2.left_trigger >= 0.9) {
+                targetLiftPos += 40;
+                if (gamepad2.right_trigger >= 0.9) {
                     targetLiftPos -= 10;
                 }
             } else if (gamepad2.left_stick_y > 0.5) {
-                targetLiftPos -= 15;
-                if (gamepad2.left_trigger >= 0.9) {
+                targetLiftPos -= 40;
+                if (gamepad2.right_trigger >= 0.9) {
                     targetLiftPos += 10;
                 }
             }
@@ -202,11 +203,11 @@ public class main_2p_imu extends LinearOpMode {
                 minLift = targetLiftPos;
                 gamepad2.rumble(500);
             } else {
-                targetLiftPos = Math.max(minLift, Math.min(targetLiftPos, 2700 + minLift));
+                targetLiftPos = Math.max(minLift, Math.min(targetLiftPos, 7280 + minLift));
             }
 
 
-            if (targetLiftPos >= 2650 + minLift) {
+            if (targetLiftPos >= 7275 + minLift) {
                 if (!hasRumbled) {
                     gamepad2.rumble(500);
                     hasRumbled = true;
@@ -218,8 +219,8 @@ public class main_2p_imu extends LinearOpMode {
             // Apply lift target
             liftR.setTargetPosition(targetLiftPos);
             liftL.setTargetPosition(targetLiftPos);
-            liftR.setPower(1.0);
-            liftL.setPower(1.0);
+            liftR.setPower(0.6);
+            liftL.setPower(0.6);
 
             // Touchpad ping
             if (gamepad1.touchpad_finger_1) gamepad2.rumble(200);
